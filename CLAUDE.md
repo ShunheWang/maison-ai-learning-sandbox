@@ -1,0 +1,85 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 项目概述
+
+AI 学习沙盒 — 一步步构建一个能自然语言操作数据库的 Agent 系统。最终目标是做**死锁检测 Agent 系统**（多 Agent 并发操作 rookieDB + 自动检测死锁）。
+
+学习的范围、深度和进度已详细记录在 `blueprint/` 目录下。核心文件：
+- `blueprint/db-agent-plan.md` — 项目方案 + 学习进度 + 学习日志（合并后的唯一真相源）
+- `blueprint/code-map.md` — 代码文件与学习单元的映射表
+- `blueprint/ai-tech-landscape.md` — AI 技术全景图
+- `blueprint/rookiedb-review.md` — rookieDB 代码评估报告
+
+写新代码前先读 `db-agent-plan.md` 了解上下文。
+
+## 技术栈与限制
+
+- **LLM 调用**：Anthropic SDK，通过 DeepSeek 兼容层（`ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`）
+- **模型**：`deepseek-v4-pro`（写死在每个 .py 文件里）
+- **数据库**：rookieDB（Java），通过 TCP socket（localhost:18600）通信
+- **语言**：Python 3，原生 Anthropic SDK，不用 LangChain
+- **无测试框架**：每个文件是独立的演示脚本，看懂概念即可
+
+## 环境变量
+
+```bash
+ANTHROPIC_API_KEY=sk-...     # DeepSeek 的 key
+ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
+```
+
+两个来源：终端靠 `~/.zshrc`，IDE 直接运行时靠项目根目录的 `.env` 文件（每个脚本开头有手动加载逻辑）。
+
+## 运行
+
+```bash
+# 直接跑（不依赖 rookieDB）
+python3 step1-agent-toolcalling/01_hello_claude.py
+python3 step1-agent-toolcalling/02_define_tool.py
+python3 step1-agent-toolcalling/03_agent_loop.py
+
+# 后续接 rookieDB 时需要先启动 Server
+cd /Users/shunhewang/melbourne/cs186/berkeley-sp26-rookiedb
+java -cp target/classes edu.berkeley.cs186.database.cli.Server &
+```
+
+## 文件架构（按学习顺序）
+
+```
+step1-agent-toolcalling/
+  01_hello_claude.py     — Anthropic SDK 初始化 + messages.create() 基础调用
+  02_define_tool.py      — Tool JSON Schema 定义，stop_reason: end_turn vs tool_use
+  03_agent_loop.py       — Agent 循环（Think→Act→Observe→Repeat），mock 数据库
+  04_connect_rookiedb.py — 接上真 rookieDB，socket 通信 + 端到端 Agent
+  05_system_prompt.py    — System Prompt 设计：角色设定、护栏、工具选择
+  06_error_handling.py   — 错误处理、重试、超时限流、优雅降级
+
+step2-mcp/               — Step 2: MCP（待开始）
+step3-multi-agent/       — Step 3: Multi-Agent（后续）
+step4-rag/               — Step 4: RAG（后续）
+```
+
+## 核心架构
+
+```
+Agent (Python) ──TCP socket :18600──→ rookieDB Server (Java)
+  │                                     ├─ LockManager（已实现）
+  ├─ Anthropic SDK                      ├─ Transaction（已实现）
+  ├─ Tool: execute_sql(sql)             └─ 死锁检测（待做）
+  └─ Tool Calling Loop
+```
+
+Agent 循环模式：
+1. 用户提问 → `client.messages.create(model, system, messages, tools)`
+2. Claude 返回 `stop_reason="tool_use"` → 执行工具 → 把 `tool_result` 塞回 `messages` → 循环
+3. Claude 返回 `stop_reason="end_turn"` → 输出最终回复，结束
+
+## 关键约定
+
+- 每个 .py 文件是独立的"学习单元"，有自己的注释、学习点和打印输出
+- **铁律：Demo 代码永远新建文件，绝不覆盖已有文件。** 每次新增的学习单元按编号递增命名（`07_xxx.py`、`08_xxx.py`），跨 Step 不重置编号，保持历史代码可追溯、可对比
+- **每个 Step 独立文件夹**：进入新 Step 时建新目录（如 `step2-mcp/`），编号继续递增不归零
+- **每次学习后同步更新进度**：写完新的 demo 或学完一个单元后，更新 `blueprint/db-agent-plan.md`（方案 + 进度 + 学习日志）和 `blueprint/code-map.md`（代码映射），保持最新
+- `.env` 已被 `.gitignore` 忽略（含 API key）
+- `.claude/settings.local.json` 里有本项目专用的 Bash 权限配置
