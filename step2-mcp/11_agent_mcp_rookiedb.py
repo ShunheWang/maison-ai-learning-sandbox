@@ -34,7 +34,7 @@ if env_path.exists():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
+                os.environ[key.strip()] = value.strip()
 
 from anthropic import Anthropic
 from mcp import ClientSession, StdioServerParameters
@@ -76,8 +76,8 @@ def call_claude_with_retry(model, max_tokens, system, messages, tools):
             return anthropic_client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
-                system=system,
-                messages=messages,
+                system=sanitize(system),
+                messages=sanitize(messages),
                 tools=tools,
             )
         except Exception as e:
@@ -86,6 +86,17 @@ def call_claude_with_retry(model, max_tokens, system, messages, tools):
             wait = 2 ** attempt
             print(f"  [API 重试] {e}，{wait}s 后重试 (第 {attempt + 1} 次)...")
             time.sleep(wait)
+
+
+def sanitize(obj):
+    """递归清除字符串中的无效 surrogate 字符，防止 json.dumps 炸裂"""
+    if isinstance(obj, str):
+        return obj.encode("utf-8", errors="replace").decode("utf-8")
+    if isinstance(obj, dict):
+        return {k: sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitize(v) for v in obj]
+    return obj
 
 
 def print_messages(messages, label):
@@ -165,7 +176,7 @@ async def run():
             )
 
             # --- 5. 用户输入 ---
-            prompt = input("\n🤔 请输入你的问题: ")
+            prompt = sanitize(input("\n🤔 请输入你的问题: "))
 
             # --- 6. Agent 循环 ---
             messages = [{"role": "user", "content": prompt}]

@@ -23,7 +23,7 @@ if env_file.exists():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+            os.environ[key.strip()] = value.strip()
 
 client = anthropic.Anthropic(
     base_url=os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),

@@ -29,7 +29,7 @@ if env_path.exists():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
+                os.environ[key.strip()] = value.strip()
 
 from anthropic import Anthropic
 from mcp import ClientSession, StdioServerParameters
