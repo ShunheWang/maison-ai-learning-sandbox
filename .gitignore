@@ -1,3 +1,11 @@
 .env
 .DS_Store
-.idea/__pycache__/
+.idea/
+__pycache__/
+
+# 外部学习资料（非本项目代码，体积大）
+docs-resources/multi-agent/ai-agents-for-beginners-main/
+docs-resources/multi-agent/AI-Agents-from-scratch-main/
+docs-resources/multi-agent/agentic-ai-systems-main/
+docs-resources/multi-agent/*.html
+docs-resources/multi-agent/*_files/
