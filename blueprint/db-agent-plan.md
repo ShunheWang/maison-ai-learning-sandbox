@@ -97,9 +97,10 @@ java -cp target/classes edu.berkeley.cs186.database.cli.Server &
 
 ### Step 2：MCP ← 当前
 
-- [ ] 学习 MCP 协议规范
+- [x] MCP 概念学习（Module 0: Introduction + Module 1: Core Concepts）
+- [x] 第一个 MCP Server（07_first_mcp_server.py）— Calculator + Inspector 测试
+- [ ] MCP Client（Agent 端发现和调用）
 - [ ] 实现 MCP Server（封装 execute_sql）
-- [ ] 实现 MCP Client（Agent 端发现和调用）
 
 ### Step 3：Multi-Agent
 
@@ -304,3 +305,55 @@ def execute(self, sql):
 - 不存在的表：Claude 确认后列出实际 3 张表，不编造
 
 **关键认知**：错误处理的目标不是"不犯错"，而是**让 Agent 能自己从错误中恢复**。把错误信息喂回给 LLM，它自己会分析原因并修正策略。这就是为什么 is_error 标记这么重要：它让 Claude 知道"你上次尝试失败了，原因是什么，换个方式试试"。
+
+---
+
+### 2026-06-04 上午 — MCP 概念学习（Module 0 Review + Module 1 Core Concepts）
+
+**产出**：
+- `docs-resources/mcp/note/01-CoreConcepts-笔记.md` — Core Concepts 完整笔记
+- CLAUDE.md 更新 — 学习节奏规则 + 笔记 review 规则
+
+**收获**：
+
+1. **MCP 架构更精确的理解**：
+   - Host ≠ Agent，Host 是运行环境（脚本/IDE），Client 是它内部的协议连接器
+   - Host 包含 Client，Client 1:1 连 Server
+   - Server 不知道 LLM 存在，只管"收到参数 → 执行 → 返回结果"
+
+2. **Server 三种原语**：Tool（做事）、Resource（查数据）、Prompt（话术模板）。我们主要用 Tool
+
+3. **Client Primitives 设计哲学**：Server 是有意"残缺"的——没有 LLM、没有 UI、没有日志系统。4 种反向能力（Sampling/Roots/Elicitation/Logging）是对这些缺失的补位通道。核心设计：单一职责做到协议层
+
+4. **核心心智模型**：
+   ```
+   LLM 做判断 → Host/Client 做转发 → Server 做执行
+   ```
+   三者分离，没有哪个代劳另一个
+
+5. **JSON-RPC 2.0 三层消息**：Request（需要回复）、Response（返回结果或错误）、Notification（不需要回复）
+
+6. **5 类消息**：初始化、发现、执行、Client 能力、通知
+
+7. **安全机制**：权限控制、认证、参数校验、限流（当前不重要）
+
+---
+
+### 2026-06-04 上午 — 第一个 MCP Server
+
+**产出**：
+- `step2-mcp/07_first_mcp_server.py` — 第一个 MCP Server（Calculator + Inspector 测试）
+- `docs-resources/mcp/note/02-First-MCP-Server-笔记.md` — 从零写 MCP Server 笔记
+
+**收获**：
+- `FastMCP` 创建 Server 只需一行：`mcp = FastMCP("Demo")`
+- `@mcp.tool()` 装饰器注册工具，Python 类型注解自动变 JSON Schema
+- `@mcp.resource()` 注册资源，URI 模板绑定函数参数
+- `mcp.run()` 启动 STDIO 传输，进程进入等待状态
+- `mcp dev server.py` 启动 MCP Inspector 可视化测试，不写 Client 就能测
+- Inspector 里手动测试了 add、multiply 两个 Tool + greeting Resource，全部通过
+
+**对比 Step 1 的提升**：
+- 手写 20 行 JSON Schema → 一行 `@mcp.tool()` 搞定
+- 手工 if/elif 分发 → FastMCP 自动路由
+- 手写 tool_use + tool_result 拼装 → FastMCP 自动处理
