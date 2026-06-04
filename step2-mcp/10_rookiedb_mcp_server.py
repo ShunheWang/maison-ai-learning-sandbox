@@ -160,6 +160,94 @@ def execute_sql(sql: str) -> str:
 
 
 # ============================================================
+# 已知表结构（rookieDB 不支持 SHOW TABLES / DESCRIBE，需要硬编码）
+# ============================================================
+_SCHEMA = {
+    "Students": {
+        "columns": ["sid", "name", "major", "gpa"],
+        "types": {"sid": "INTEGER", "name": "TEXT", "major": "TEXT", "gpa": "FLOAT"},
+    },
+    "Courses": {
+        "columns": ["cid", "name", "department"],
+        "types": {"cid": "INTEGER", "name": "TEXT", "department": "TEXT"},
+    },
+    "Enrollments": {
+        "columns": ["sid", "cid"],
+        "types": {"sid": "INTEGER", "cid": "INTEGER"},
+    },
+}
+
+
+def _is_valid_table(table_name: str) -> bool:
+    """检查表名是否合法，防止 SQL 注入"""
+    return table_name in _SCHEMA
+
+
+# ============================================================
+# MCP Tool: list_tables
+# ============================================================
+@mcp.tool()
+def list_tables() -> str:
+    """List all tables in the database.
+
+    Returns the names of all available tables in rookieDB.
+    Use this to see what data is available before querying.
+    """
+    db = get_db()
+    if db is None:
+        return "ERROR: Cannot connect to rookieDB on localhost:18600."
+
+    table_names = list(_SCHEMA.keys())
+    return f"Tables ({len(table_names)}): " + ", ".join(table_names)
+
+
+# ============================================================
+# MCP Tool: describe_table
+# ============================================================
+@mcp.tool()
+def describe_table(table_name: str) -> str:
+    """Show the column names and types for a specific table.
+
+    Args:
+        table_name: The name of the table to describe (e.g., 'Students', 'Courses', 'Enrollments').
+
+    Returns the column definitions for the given table.
+    """
+    if not _is_valid_table(table_name):
+        return f"ERROR: Unknown table '{table_name}'. Available tables: {', '.join(_SCHEMA.keys())}"
+
+    db = get_db()
+    if db is None:
+        return "ERROR: Cannot connect to rookieDB on localhost:18600."
+
+    # 通过 SELECT * LIMIT 1 获取列名（解析 header 行）
+    try:
+        result = db.execute(f"SELECT * FROM {table_name} LIMIT 1;")
+    except Exception as e:
+        return f"ERROR: {e}"
+
+    # 解析 header 行格式: " sid | name              | major     | gpa"
+    lines = result.strip().split("\n")
+    header_line = None
+    for line in lines:
+        if "|" in line and "---" not in line:
+            header_line = line
+            break
+
+    if header_line is None:
+        # 空表（没有数据行），用已知 schema 兜底
+        schema = _SCHEMA[table_name]
+        cols = [f"  {col}: {schema['types'][col]}" for col in schema["columns"]]
+        return f"Table: {table_name} (empty)\n" + "\n".join(cols)
+
+    columns = [c.strip() for c in header_line.split("|")]
+    schema = _SCHEMA[table_name]
+    rows = [f"  {col}: {schema['types'].get(col, 'UNKNOWN')}" for col in columns if col]
+
+    return f"Table: {table_name}\n" + "\n".join(rows)
+
+
+# ============================================================
 # MCP Resource: database schema
 # ============================================================
 @mcp.resource("database://schema")

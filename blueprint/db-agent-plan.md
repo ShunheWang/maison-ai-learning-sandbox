@@ -95,7 +95,7 @@ java -cp target/classes edu.berkeley.cs186.database.cli.Server &
 - [x] **05_system_prompt.py** — System Prompt 设计（5 个对比实验）
 - [x] **06_error_handling.py** — 错误处理：重试、重连、参数校验
 
-### Step 2：MCP ← 当前
+### Step 2：MCP ✅
 
 - [x] MCP 概念学习（Module 0: Introduction + Module 1: Core Concepts）
 - [x] 第一个 MCP Server（07_first_mcp_server.py）— Calculator + Inspector 测试
@@ -103,7 +103,7 @@ java -cp target/classes edu.berkeley.cs186.database.cli.Server &
 - [x] LLM + MCP Client（09_agent_with_mcp.py）— 自然语言驱动工具调用
 - [x] MCP Server for rookieDB（10_rookiedb_mcp_server.py）— execute_sql + schema resource
 - [x] Agent + MCP → rookieDB（11_agent_mcp_rookiedb.py）— 端到端自然语言查库
-- [ ] 多工具扩展（show_tables、describe_table 等，按需）
+- [x] 多工具扩展（list_tables、describe_table）
 
 ### Step 3：Multi-Agent
 
