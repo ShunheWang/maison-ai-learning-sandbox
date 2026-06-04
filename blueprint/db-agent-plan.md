@@ -101,7 +101,9 @@ java -cp target/classes edu.berkeley.cs186.database.cli.Server &
 - [x] 第一个 MCP Server（07_first_mcp_server.py）— Calculator + Inspector 测试
 - [x] MCP Client（08_mcp_client.py）— 手动调用 MCP Server 工具
 - [x] LLM + MCP Client（09_agent_with_mcp.py）— 自然语言驱动工具调用
-- [ ] 实现 MCP Server（封装 execute_sql）
+- [x] MCP Server for rookieDB（10_rookiedb_mcp_server.py）— execute_sql + schema resource
+- [x] Agent + MCP → rookieDB（11_agent_mcp_rookiedb.py）— 端到端自然语言查库
+- [ ] 多工具扩展（show_tables、describe_table 等，按需）
 
 ### Step 3：Multi-Agent
 
@@ -389,5 +391,33 @@ def execute(self, sql):
 6. **多步推理验证**：测试 "帮我算 3+5 再加 10"，LLM 自动做了两步——先 add(3,5)=8，再 add(8,10)=18
 
 7. **消息过大问题**：截断结果、保留最近 N 轮、LLM 总结历史、Prompt Caching 四种解法
+
+8. **async/await**：MCP Client 基础用法只需知道 `await`=等结果、`async`=标记函数、`asyncio.run()`=启动
+
+---
+
+### 2026-06-04 下午 — Phase 3: execute_sql → MCP Tool
+
+**产出**：
+- `step2-mcp/10_rookiedb_mcp_server.py` — MCP Server：rookieDB 连接 + execute_sql 工具 + schema 资源
+- `step2-mcp/11_agent_mcp_rookiedb.py` — Agent + MCP Client：自然语言操作 rookieDB
+- `docs/superpowers/specs/2026-06-04-mcp-rookiedb-server-design.md` — Spec
+- `docs/superpowers/plans/2026-06-04-mcp-rookiedb.md` — 实施计划
+
+**过程**：严格按 brainstorming → spec → design → plan → subagent-driven-dev 流程执行。5 个 Task，每个经过 implementer + spec review + code quality review 三层验证
+
+**收获**：
+
+1. **MCP 解耦验证成功**：把 Step 1 紧耦合的 `execute_sql` + socket 连接完全拆到独立 MCP Server。Agent (11) 不知道 socket/reconnect/rookieDB 的存在，只看到 MCP 接口
+
+2. **Resource 实战**：`database://schema` 作为 MCP Resource 提供表结构，Agent 启动时自动获取注入 System Prompt。Tool + Resource 都用上了
+
+3. **mcp run 陷阱**：`mcp run` 使用 `exec_module` 加载模块，不触发 `if __name__ == "__main__"`。解决方案：懒初始化（首次工具调用时连接），兼容两种启动方式
+
+4. **端到端验证**：rookieDB 运行 → 11 启动 10 → 发现工具 → 获取 schema → "列出所有学生" → LLM 自动生成 SQL → Server 执行 → 返回 200 条学生数据 → LLM 格式化展示。全链路通过
+
+5. **流程纪律**：brainstorming → spec → plan → implement → review 的完整流程跑了一遍，spec 驱动开发不是口号
+
+6. **Agent 循环完全不变**：11 的 Agent 循环跟 03/06/09 一模一样——`while + stop_reason + tool_use + tool_result + messages.append`。MCP 只替换了工具执行层，不改变 Agent 架构
 
 8. **async/await**：MCP Client 基础用法只需知道 `await`=等结果、`async`=标记函数、`asyncio.run()`=启动
