@@ -207,7 +207,10 @@ async def run():
                             result = await session.call_tool(
                                 block.name, arguments=block.input
                             )
-                            result_text = str(result.content[0].text)
+                            if result.content and hasattr(result.content[0], "text"):
+                                result_text = str(result.content[0].text)
+                            else:
+                                result_text = str(result)
                             is_error = False
                         except Exception as e:
                             result_text = f"工具调用失败: {e}"
