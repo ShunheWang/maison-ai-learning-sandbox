@@ -111,12 +111,25 @@ class RookieDBConnection:
 mcp = FastMCP("rookieDB")
 
 # ============================================================
-# 数据库连接（模块级变量，启动时初始化）
+# 数据库连接（懒初始化，兼容 python3 和 mcp run 两种启动方式）
 # ============================================================
-_db = None  # RookieDBConnection | None
+_db = None
 
 
 def get_db():
+    """获取数据库连接，首次调用时自动连接"""
+    global _db
+    if _db is None:
+        db = RookieDBConnection()
+        try:
+            db.connect()
+            _db = db
+        except Exception as e:
+            print(
+                f"WARNING: Cannot connect to rookieDB ({e}).",
+                file=sys.stderr,
+            )
+            _db = None
     return _db
 
 
@@ -134,7 +147,7 @@ def execute_sql(sql: str) -> str:
       Enrollments (sid, cid)
     """
     db = get_db()
-    if db is None or not db.is_connected():
+    if db is None:
         return (
             "ERROR: Cannot connect to rookieDB on localhost:18600. "
             "Please ensure the rookieDB server is running."
@@ -169,16 +182,4 @@ def get_schema() -> str:
 # 启动
 # ============================================================
 if __name__ == "__main__":
-    db = RookieDBConnection()
-    try:
-        db.connect()
-        _db = db
-    except Exception as e:
-        print(
-            f"WARNING: Cannot connect to rookieDB ({e}). "
-            "execute_sql will return an error until it's started.",
-            file=sys.stderr,
-        )
-        _db = None  # 连接失败时不设置 _db，让工具返回清晰错误
-
     mcp.run()
