@@ -150,8 +150,11 @@ async def run():
                     print(f"🤖 Agent: {final_text}")
                     break
 
-                # 4b. LLM 要调工具 → 先存 assistant 消息
-                messages.append({"role": "assistant", "content": response.content})
+                # 4b. LLM 要调工具 → 先存 assistant 消息（过滤 thinking）
+                assistant_blocks = [
+                    b for b in response.content if b.type != "thinking"
+                ]
+                messages.append({"role": "assistant", "content": assistant_blocks})
 
                 # 4c. 执行每个 tool_use，结果存为新 user 消息
                 for block in response.content:

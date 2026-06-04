@@ -194,10 +194,13 @@ async def run():
                     print(f"\n🤖 Agent: {final_text}")
                     break
 
-                # 4b. 存 assistant 消息
-                messages.append({"role": "assistant", "content": response.content})
+                # 4b. 存 assistant 消息（过滤掉 thinking block）
+                assistant_blocks = [
+                    b for b in response.content if b.type != "thinking"
+                ]
+                messages.append({"role": "assistant", "content": assistant_blocks})
 
-                # 4c. 执行每个 tool_use
+                # 4c. 执行每个 tool_use（跳过 thinking）
                 for block in response.content:
                     if block.type == "tool_use":
                         print(f"\n🔧 LLM 决定调: {block.name}({json.dumps(block.input, ensure_ascii=False)})")
