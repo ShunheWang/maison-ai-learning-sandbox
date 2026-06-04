@@ -106,11 +106,75 @@ class RookieDBConnection:
 # ============================================================
 mcp = FastMCP("rookieDB")
 
-# (Task 3 填充工具和资源)
+# ============================================================
+# 数据库连接（模块级变量，启动时初始化）
+# ============================================================
+_db = None  # RookieDBConnection | None
+
+
+def get_db():
+    return _db
+
+
+# ============================================================
+# MCP Tool: execute_sql
+# ============================================================
+@mcp.tool()
+def execute_sql(sql: str) -> str:
+    """Execute a SQL statement on the rookieDB database.
+
+    Supports SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, DROP TABLE.
+    The database contains three tables:
+      Students (sid, name, major, gpa)
+      Courses (cid, name, department)
+      Enrollments (sid, cid)
+    """
+    db = get_db()
+    if db is None or not db.is_connected():
+        return (
+            "ERROR: Cannot connect to rookieDB on localhost:18600. "
+            "Please ensure the rookieDB server is running."
+        )
+    try:
+        result = db.execute(sql)
+        return result
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+# ============================================================
+# MCP Resource: database schema
+# ============================================================
+@mcp.resource("database://schema")
+def get_schema() -> str:
+    """Get the database schema (tables and columns)."""
+    return (
+        "Database: rookieDB\n"
+        "\n"
+        "Table: Students\n"
+        "  Columns: sid (INTEGER), name (TEXT), major (TEXT), gpa (FLOAT)\n"
+        "\n"
+        "Table: Courses\n"
+        "  Columns: cid (INTEGER), name (TEXT), department (TEXT)\n"
+        "\n"
+        "Table: Enrollments\n"
+        "  Columns: sid (INTEGER), cid (INTEGER)\n"
+    )
 
 # ============================================================
 # 启动
 # ============================================================
 if __name__ == "__main__":
-    # (Task 4 填充启动逻辑)
+    db = RookieDBConnection()
+    try:
+        db.connect()
+        _db = db
+    except ConnectionRefusedError:
+        print(
+            "WARNING: rookieDB not running on localhost:18600. "
+            "execute_sql will return an error until it's started.",
+            file=sys.stderr,
+        )
+        _db = db
+
     mcp.run()
