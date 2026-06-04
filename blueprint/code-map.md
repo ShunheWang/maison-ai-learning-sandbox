@@ -18,6 +18,8 @@
 | 文件 | 学习单元 | 核心概念 | 对应笔记 |
 |------|---------|---------|---------|
 | `step2-mcp/07_first_mcp_server.py` | 第一个 MCP Server | FastMCP、@mcp.tool()、Inspector 测试 | `02-First-MCP-Server-笔记.md` |
+| `step2-mcp/08_mcp_client.py` | MCP Client | 连接 Server、发现工具、手动调用 | `03-MCP-Client-笔记.md` |
+| `step2-mcp/09_agent_with_mcp.py` | LLM + MCP Client | 自然语言驱动、工具格式转换、Agent 循环 | `03-MCP-Client-笔记.md` |
 
 ## 专题学习
 

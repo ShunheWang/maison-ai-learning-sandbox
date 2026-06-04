@@ -99,7 +99,8 @@ java -cp target/classes edu.berkeley.cs186.database.cli.Server &
 
 - [x] MCP 概念学习（Module 0: Introduction + Module 1: Core Concepts）
 - [x] 第一个 MCP Server（07_first_mcp_server.py）— Calculator + Inspector 测试
-- [ ] MCP Client（Agent 端发现和调用）
+- [x] MCP Client（08_mcp_client.py）— 手动调用 MCP Server 工具
+- [x] LLM + MCP Client（09_agent_with_mcp.py）— 自然语言驱动工具调用
 - [ ] 实现 MCP Server（封装 execute_sql）
 
 ### Step 3：Multi-Agent
@@ -357,3 +358,36 @@ def execute(self, sql):
 - 手写 20 行 JSON Schema → 一行 `@mcp.tool()` 搞定
 - 手工 if/elif 分发 → FastMCP 自动路由
 - 手写 tool_use + tool_result 拼装 → FastMCP 自动处理
+
+---
+
+### 2026-06-04 下午 — MCP Client + LLM 集成
+
+**产出**：
+- `step2-mcp/08_mcp_client.py` — MCP Client：连接 Server、发现工具、手动调用
+- `step2-mcp/09_agent_with_mcp.py` — LLM + MCP Client：自然语言输入、LLM 自动选工具
+- `docs-resources/mcp/note/03-MCP-Client-笔记.md` — MCP Client 完整笔记
+
+**收获**：
+
+1. **MCP Client 6 个核心方法**：发现层（list_tools/list_resources/list_prompts）+ 调用层（call_tool/read_resource/get_prompt）
+
+2. **07-08-09 三层关系**：
+   ```
+   07 = MCP Server      → 工具定义，独立进程
+   08 = MCP Client       → 连 Server，手动指定工具
+   09 = LLM + MCP Client → 连 Server，LLM 自动选工具
+   ```
+   Client 通过 StdioServerParameters 自动拉起 Server 子进程，Client 退出则 Server 一起停
+
+3. **工具格式转换**：MCP 返回的 inputSchema 需要转成 Anthropic tool format，FastMCP 帮 Server 端省了，Client 端还要自己写
+
+4. **Agent 循环不变**：09 的 Agent 循环跟 03_agent_loop.py 一模一样，只是把 `if tool_use.name == "add"` 换成了 `session.call_tool(name, args)`
+
+5. **messages 积累机制**：每次调 LLM 必须传完整历史，LLM 没记忆。这是 Agent 循环的发动机，也是消息膨胀的根源
+
+6. **多步推理验证**：测试 "帮我算 3+5 再加 10"，LLM 自动做了两步——先 add(3,5)=8，再 add(8,10)=18
+
+7. **消息过大问题**：截断结果、保留最近 N 轮、LLM 总结历史、Prompt Caching 四种解法
+
+8. **async/await**：MCP Client 基础用法只需知道 `await`=等结果、`async`=标记函数、`asyncio.run()`=启动

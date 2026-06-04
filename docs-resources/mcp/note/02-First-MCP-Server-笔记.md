@@ -121,33 +121,20 @@ if __name__ == "__main__":
 
 ## 3. 运行和测试
 
-### 3.1 直接跑
+### 3.1 两种启动方式
 
-```bash
-python3 server.py
-```
+| 方式 | 命令 | 效果 |
+|------|------|------|
+| 直接跑 | `python3 server.py` | 只有 Server，等待 STDIO 输入，终端无输出 |
+| Inspector | `mcp dev server.py` | Server + Inspector Web 界面，可视化测试 |
 
-Server 启动后会等待 STDIO 输入（不会在终端看到任何输出，正常）。
+`mcp dev` 一键启动两个东西：Server 进程 + Inspector（浏览器页面）。`Ctrl+C` 两个一起停。
 
-### 3.2 用 MCP Inspector 调试（推荐）
+### 3.2 Inspector 使用步骤
 
-```bash
-mcp dev server.py
-```
-
-这会自动启动 Inspector（可视化 Web 界面），能直接：
-- 看到 Server 有哪些 Tool
-- 手动调 Tool 看返回结果
-- 检查 JSON-RPC 消息
-
-也可以直接用 Node.js 的 Inspector：
-```bash
-npx @modelcontextprotocol/inspector mcp run server.py
-```
-
-### 3.3 也可以在 Claude Desktop 里配置
-
-Step 3 会学到，现在先不用。
+1. `mcp dev server.py` → 浏览器打开 `http://localhost:6274`
+2. 确认 Transport Type 为 STDIO，Command 为 `mcp`，Arguments 为 `run server.py`
+3. Connect → Tools → List Tools → 选工具 → 填参数 → Call Tool
 
 ---
 
