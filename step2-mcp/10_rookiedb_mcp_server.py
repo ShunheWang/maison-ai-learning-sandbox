@@ -38,11 +38,15 @@ class RookieDBConnection:
 
     def connect(self):
         """建立 TCP 连接并等待欢迎提示"""
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(10)
-        self.sock.connect((self.host, self.port))
-        self._recv_until_prompt()
-        print(f"[rookieDB] 已连接 {self.host}:{self.port}", file=sys.stderr)
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.settimeout(10)
+            self.sock.connect((self.host, self.port))
+            self._recv_until_prompt()
+            print(f"[rookieDB] 已连接 {self.host}:{self.port}", file=sys.stderr)
+        except Exception:
+            self.sock = None
+            raise
 
     def execute(self, sql: str) -> str:
         """执行 SQL，自动加 ';'，断线自动重连一次"""
@@ -169,12 +173,12 @@ if __name__ == "__main__":
     try:
         db.connect()
         _db = db
-    except ConnectionRefusedError:
+    except Exception as e:
         print(
-            "WARNING: rookieDB not running on localhost:18600. "
+            f"WARNING: Cannot connect to rookieDB ({e}). "
             "execute_sql will return an error until it's started.",
             file=sys.stderr,
         )
-        _db = db
+        _db = None  # 连接失败时不设置 _db，让工具返回清晰错误
 
     mcp.run()
