@@ -211,7 +211,10 @@ async def run():
                 ]
                 messages.append({"role": "assistant", "content": assistant_blocks})
 
-                # 4c. 执行每个 tool_use（跳过 thinking）
+                # 4c. 执行每个 tool_use，收集结果到同一条 user 消息
+                #     API 要求: assistant 的所有 tool_use 必须在紧随的
+                #     一条 user 消息中全部给出对应的 tool_result
+                tool_results = []
                 for block in response.content:
                     if block.type == "tool_use":
                         print(f"\n🔧 LLM 决定调: {block.name}({json.dumps(block.input, ensure_ascii=False)})")
@@ -232,7 +235,7 @@ async def run():
 
                         print(f"   Server 返回: {result_text[:100]}...")
 
-                        # 塞回消息历史（异常时标记 is_error）
+                        # 组装 tool_result block
                         tool_result_block = {
                             "type": "tool_result",
                             "tool_use_id": block.id,
@@ -241,10 +244,10 @@ async def run():
                         if is_error:
                             tool_result_block["is_error"] = True
 
-                        messages.append({
-                            "role": "user",
-                            "content": [tool_result_block],
-                        })
+                        tool_results.append(tool_result_block)
+
+                if tool_results:
+                    messages.append({"role": "user", "content": tool_results})
 
                 print_messages(messages, f"第 {turn + 1} 轮后")
             else:

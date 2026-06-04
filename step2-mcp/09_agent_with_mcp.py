@@ -156,7 +156,10 @@ async def run():
                 ]
                 messages.append({"role": "assistant", "content": assistant_blocks})
 
-                # 4c. 执行每个 tool_use，结果存为新 user 消息
+                # 4c. 执行每个 tool_use，收集所有结果到同一条 user 消息
+                #     API 要求: assistant 的所有 tool_use 必须在紧随的
+                #     一条 user 消息中全部给出对应的 tool_result
+                tool_results = []
                 for block in response.content:
                     if block.type == "tool_use":
                         print(f"🔧 LLM 决定调: {block.name}({block.input})")
@@ -165,16 +168,14 @@ async def run():
                         result_text = str(result.content[0].text)
                         print(f"   Server 返回: {result_text}")
 
-                        messages.append({
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": block.id,
-                                    "content": result_text,
-                                }
-                            ],
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result_text,
                         })
+
+                if tool_results:
+                    messages.append({"role": "user", "content": tool_results})
 
                 print_messages(messages, f"第 {turn + 1} 轮后")
             else:
