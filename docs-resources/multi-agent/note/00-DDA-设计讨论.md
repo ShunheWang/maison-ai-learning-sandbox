@@ -75,7 +75,7 @@ DDA 检测到死锁 → DDA 通知 Worker："你的事务是 victim" → Worker 
 
 ---
 
-## DDA 内部模块分工
+## DDA 内部模块分工（v1，2026-06-04）
 
 | 模块 | 实现方式 | 理由 |
 |------|---------|------|
@@ -85,6 +85,78 @@ DDA 检测到死锁 → DDA 通知 Worker："你的事务是 victim" → Worker 
 | 执行回滚 | DDA 直接 ROLLBACK | 简单直接 |
 
 **DDA 本身不一定是 Multi-Agent**——死锁检测是单点问题，一个 DDA 就够了。真正需要 Multi-Agent 的是业务层（多个 Worker 并发干活）。
+
+---
+
+## DDA Agent 拆分设计（v2，2026-06-08，来自 Lesson 8 启发）
+
+> **启发来源**：[Lesson 8: Multi-Agent Design Pattern](../ai-agents-for-beginners-main/08-multi-agent/README.md)
+> - "专属 + 通用"拆分法：退款流程把 Agent 拆成业务专属 + 跨业务通用两类
+> - Hand-off 模式：任务从 A Agent 转给 B Agent，每个 Agent 负责一个步骤
+> - Collaborative Filtering 模式：多个 Agent 各从不同角度分析，协作给出综合结论
+> - 6 大构建模块：通信、协调、内部架构、可观测性、模式选择、人机协作
+
+Lesson 8 的"专属 + 通用"拆分方法 + Hand-off 模式，直接适用于 DDA 设计。
+
+### 核心思路：DDA 不是一个 Agent，是一组 Agent
+
+把原来"一个 DDA 包办一切"拆成三个专属 Agent，用 Hand-off 模式串联：
+
+```
+Detector Agent          Analyzer Agent          Executor Agent
+  轮询 LockManager  →   分析死锁严重度    →     执行回滚
+  发现死锁              选 victim                通知 Worker
+  构建 wait-for graph   评估业务影响
+```
+
+### DDA 专属 Agent
+
+| Agent | 职责 | 实现方式 |
+|-------|------|---------|
+| **Detector Agent** | 定时轮询 LockManager，构建 wait-for graph，BFS/DFS 找环，发现死锁后触发告警 | 传统 Python 代码（确定性算法） |
+| **Analyzer Agent** | 拿到死锁信息 → 分析严重程度 → 评估各事务的优先级/业务价值 → 选定 victim | LLM Agent（需要语义判断） |
+| **Executor Agent** | 执行回滚，通知受影响的 Worker，记录日志 | 传统代码（回滚）+ LLM（通知措辞） |
+
+**Hand-off 链**：
+```
+Detector 发现环 → 交接给 Analyzer（附带 wait-for graph + 涉及的事务列表）
+Analyzer 选 victim → 交接给 Executor（附带 victim 事务 ID + 理由）
+Executor 回滚 + 通知 → 结束
+```
+
+### 通用 Agent（多 Agent 数据库系统共用）
+
+| Agent | 职责 | 哪些场景也能用 |
+|-------|------|-------------|
+| **Worker Agent** | 执行数据库任务，管理事务生命周期 | 任何需要操作 DB 的 Agent |
+| **MCP Server** | 数据库连接池、SQL 执行、schema 暴露 | 所有 Agent 的 DB 访问入口 |
+| **Logger Agent** | 记录操作日志、死锁事件、回滚历史 | 审计、调试、监控 |
+| **Notification Agent** | 死锁/异常/超时时通知相关方 | 告警、状态推送 |
+
+### 对比 v1 vs v2
+
+| 维度 | v1（单 DDA） | v2（多 Agent DDA） |
+|------|------------|-------------------|
+| 检测死锁 | DDA 内部函数调用 | Detector Agent 独立运行 |
+| 选 victim | DDA 的 LLM 直接判断 | Analyzer Agent 专注分析 |
+| 执行回滚 | DDA 内部函数调用 | Executor Agent 独立执行 + 通知 |
+| 扩展性 | 加能力 = 改 DDA 代码 | 加能力 = 加新 Agent |
+| 可观测性 | 看 DDA 日志 | 每个 Agent 独立日志 + Hand-off 节点可见 |
+| 并行能力 | 串行处理 | 多个死锁场景可同时分析 |
+
+### Phase 3 落地建议
+
+- **Phase 3 先做 v1**（单 DDA），跑通死锁检测 → 选 victim → 回滚的完整链路
+- **后续迭代 v2**：把 DDA 拆成 Detector → Analyzer → Executor 三个 Agent，用 Hand-off 串联
+- **Collaborative Filtering 长远探索**：多个 Analyzer Agent 从不同角度分析（锁数量、事务时长、业务重要性），汇总裁决选 victim
+
+### 三种 Lesson 8 模式的 DDA 映射
+
+| 模式 | DDA 映射 | 优先级 |
+|------|---------|--------|
+| **Hand-off** | Detector → Analyzer → Executor 串行交接 | Phase 3 可做 |
+| **Collaborative Filtering** | 多个 Analyzer 从不同角度选 victim，汇总裁决 | 未来探索 |
+| **Group Chat** | Worker 之间在"群"里协商锁资源 | 未来探索 |
 
 ---
 

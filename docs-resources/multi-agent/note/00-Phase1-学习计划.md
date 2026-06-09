@@ -50,19 +50,20 @@ Session 4: SDK 实战            Session 5: 模式速查
 
 ---
 
-## Session 2：Agentic Design Patterns（核心基础）
+## Session 2：UX 设计原则（了解即可）
+
+> ⚠️ **计划修正（2026-06-08）**：原计划根据标题 `Agentic Design Patterns` 推测这课讲工程模式，实际内容是 **UX 层面的设计原则**（Space/Time/Core），偏产品思维，不是软件架构。已修正描述，降低优先级。工程层面的设计模式实际在 Session 3-5 中覆盖。
 
 **阅读**：`ai-agents-for-beginners-main/03-agentic-design-patterns/README.md`
 
 **要搞清楚的问题**：
-- Agentic Pattern 是什么？和普通 prompt engineering 有什么区别？
-- 每种 Pattern 的核心思想、适用场景、代码实现思路
-- 哪些 Pattern Step 1/2 已经用过了？（Tool Use、Agent Loop）
-- 哪些 Pattern 是 Step 3 需要重点学的？（Multi-Agent、Orchestrator）
-- Prompt Chaining vs Orchestrator 的区别？
-- Planning Design Pattern 怎么工作的？（Agent 自己制定计划 → 执行 → 评估）
+- Agent 设计的三个维度：Space（在哪运行）、Time（如何处理时间）、Core（本质是什么）
+- 三条实施指南：透明（Transparency）、可控（Control）、一致（Consistency）
+- 这些 UX 原则对我们设计 DDA 有什么启发？（透明解释死锁原因、victim 可以是"建议"而非"强制"）
 
-**产出**：笔记 `03-Lesson3-笔记.md`
+**注意**：内容偏产品/UX，跟工程实现不直接对应，快速过即可。工程模式（Tool Use、Planning、Orchestrator-Worker 等）不在本课——Lesson 4 Tool Use 已覆盖、Lesson 8 + Anthropic 博客 + Claude Patterns 会补上。
+
+**产出**：笔记 `03-Lesson3-笔记.md`（已完成）
 
 ---
 
