@@ -33,7 +33,7 @@ Agent 循环模式：
 Step 1: 单 Agent + Tool Calling     ← ✅ 完成
         → Anthropic SDK, Tool Calling Loop, System Prompt, 错误处理
 
-Step 2: MCP                        ← 学习中
+Step 2: MCP                        ← ✅ 完成
         → MCP 协议, Server/Client, Transport
 
 Step 3: Multi-Agent
@@ -114,10 +114,10 @@ java -cp target/classes edu.berkeley.cs186.database.cli.Server &
   - [x] Session 4: Anthropic 博客 — Orchestrator-Worker 实战、性能数据、生产挑战
   - [x] Session 5: Claude Patterns — 7 种模式速查、Workflows vs Agents
   - [x] DDA 设计讨论 — 三层架构、方案 A/B、Agent 拆分 v2、通信机制
-- [ ] **Phase 2: 动手** — 3 个 demo
-  - [ ] `12_orchestrator_worker.py` — 两个 Agent 协作（编排模式）
-  - [ ] `13_concurrent_agents.py` — 多 Agent 并发操作 rookieDB
-  - [ ] `14_deadlock_scenario.py` — 死锁场景复现
+- [x] **Phase 2: 动手** — 3 个 demo ✅
+  - [x] `12_orchestrator_worker.py` — Orchestrator → Worker A + B（纯 Prompt Chaining）
+  - [x] `13_concurrent_agents.py` — 3 个 Worker Agent 并发操作 rookieDB
+  - [x] `14_deadlock_scenario.py` — 死锁场景复现（asyncio.Event 同步屏障 + \alllocks 真实锁状态）
 - [ ] **Phase 3: DDA** — 死锁检测 Agent
   - [ ] Wait-for graph 构建 + BFS 找环（传统代码）
   - [ ] Victim selection（LLM Agent）
@@ -459,4 +459,59 @@ def execute(self, sql):
 6. **DDA 可拆成 Detector → Analyzer → Executor**（Hand-off 模式，后续迭代）
 7. **工具描述 = Agent 的地图**—描述不准，Agent 就走弯路
 
-**下一步**：Phase 2 动手写 3 个 demo（编排 → 并发 → 死锁场景）
+**下一步**：Phase 3 DDA — 死锁检测 Agent（先 brainstorming → spec → plan）
+
+---
+
+### 2026-06-09 — 12：编排模式（Orchestrator-Worker）
+
+**产出**：`step3-multi-agent/12_orchestrator_worker.py`
+
+**收获**：
+- Orchestrator-Worker 模式验证：Orchestrator 拆任务 → Worker A 写 SQL → Worker B review SQL → Orchestrator 汇总
+- 3 个 Agent 各有独立 System Prompt，各司其职
+- 纯 Prompt Chaining 全链路（不接 rookieDB）
+- 3 个测试用例（简单/复杂/多任务）全部通过
+
+**关键认知**：Orchestrator-Worker 不是"让 LLM 更聪明"，而是"用多个 LLM 调用来平分复杂度"——每个 Agent 只做一件事，合起来就够复杂。
+
+---
+
+### 2026-06-09 — 13：多 Agent 并发
+
+**产出**：`step3-multi-agent/13_concurrent_agents.py`
+
+**收获**：
+- 3 个 Worker Agent 并发操作同一个 rookieDB，每个 Worker 持有独立事务
+- 每个 Worker 有独立的 socket 连接 + Anthropic client + messages 历史
+- `asyncio.gather()` + `run_in_executor()` 实现真正的并发（非串行排队）
+- LLM 调用本身是阻塞的，但多个 Worker 的 LLM 调用在不同线程并发
+- 发现实际表结构：只有 Students（201 行）+ Courses（16 行），无 Enrollment
+- 修复连接 echo 问题：`time.sleep(0.3)` + `_drain()` flush 缓冲区
+- 反幻觉 prompt："表不存在就直说，不要用别的表的返回值凑数"
+- SQL 限制发现：无 DISTINCT/GROUP BY/LIMIT/ORDER BY DESC，工具描述准确标注
+
+**关键认知**：并发场景下，工具描述的准确性至关重要——Worker 不知道表结构会反复尝试不存在的东西，浪费时间。工具描述 = Agent 的地图。
+
+---
+
+### 2026-06-09 — 14：死锁场景复现
+
+**产出**：`step3-multi-agent/14_deadlock_scenario.py` + rookieDB 源码修改（`\alllocks`）
+
+**收获**：
+- 经典死锁模式复现：Worker A 先锁 Students 再锁 Courses，Worker B 先锁 Courses 再锁 Students——相反顺序
+- `asyncio.Event` 同步屏障：双方都在第 2 步后等待，同时冲向第 3 步 → 死锁
+- 首次修改 rookieDB 源码：`LockManager.getAllLockInfo()` + `\alllocks` metacommand
+- 每次 SQL 执行后打印 rookieDB 真实锁状态——不是 Python 端推断，是 Java 进程内 LockManager 的真实数据
+- 死锁后两个 Worker 永久阻塞，60 秒超时后打印总结
+
+**rookieDB 改动**：
+| 文件 | 改动 |
+|------|------|
+| `concurrency/LockManager.java` | 新增 `getAllLockInfo()` 方法（16 行），dump `transactionLocks` + `resourceEntries` |
+| `cli/CommandLineInterface.java` | 新增 `\alllocks` metacommand（3 行），调用 `getAllLockInfo()` |
+
+**已知问题**：`\alllocks` 并发输出混扰——多个 Worker 同时调用时 socket 字节流可能混杂。Phase 3 DDA 用独立连接轮询解决。
+
+**关键认知**：rookieDB 的 LockManager 没有死锁检测，事务永久挂起。这正是 DDA 存在的理由。死锁不是 bug，是设计选择——LockManager 只管加锁，不管死锁。

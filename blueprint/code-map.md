@@ -23,6 +23,14 @@
 | `step2-mcp/10_rookiedb_mcp_server.py` | MCP Server for rookieDB | RookieDBConnection、execute_sql、list_tables、describe_table、schema Resource | — |
 | `step2-mcp/11_agent_mcp_rookiedb.py` | Agent + MCP → rookieDB | MCP 解耦实战、API 重试、懒初始化连接、sanitize 清洗 | — |
 
+## Step 3：Multi-Agent
+
+| 文件 | 学习单元 | 核心概念 | 对应笔记 |
+|------|---------|---------|---------|
+| `step3-multi-agent/12_orchestrator_worker.py` | 编排模式 | Orchestrator-Worker 模式、Prompt Chaining、3 Agent 协作、任务拆解 | `db-agent-plan.md` § 2026-06-09 |
+| `step3-multi-agent/13_concurrent_agents.py` | 多 Agent 并发 | asyncio.gather、run_in_executor、独立连接、反幻觉、SQL 限制发现 | `db-agent-plan.md` § 2026-06-09 |
+| `step3-multi-agent/14_deadlock_scenario.py` | 死锁场景复现 | asyncio.Event 同步屏障、死锁复现、rookieDB LockManager 源码修改、\alllocks 锁状态 | `db-agent-plan.md` § 2026-06-09 + `docs/superpowers/specs/2026-06-09-rookiedb-show-locks.md` |
+
 ## 专题学习
 
 | 目录 | 内容 | 对应代码 |
@@ -31,13 +39,15 @@
 | `docs-resources/mcp/note/` | MCP 学习笔记 | `07` |
 | `docs-resources/mcp/` | MCP 官方教程（mcp-for-beginners 等） | — |
 | `blueprint/rookiedb-review.md` | rookieDB 代码评估 | `04`, `06` |
+| `docs-resources/multi-agent/note/` | Multi-Agent 学习笔记（6 篇 + DDA 设计讨论） | Step 3 |
 
 ## 学习资源位置
 
 | 文件夹 | 用途 |
 |--------|------|
 | `step1-agent-toolcalling/` | Step 1 所有 demo 代码 |
-| `step2-mcp/` | Step 2 代码（即将开始） |
+| `step2-mcp/` | Step 2 所有 demo 代码 |
+| `step3-multi-agent/` | Step 3 所有 demo 代码 |
 | `blueprint/` | 项目蓝图：方案、日志、代码评估、本映射表 |
 | `docs-resources/` | 外部学习资料（教程、参考实现） |
 | `docs/` | 自动生成的 spec/plan（Superpowers 输出） |
