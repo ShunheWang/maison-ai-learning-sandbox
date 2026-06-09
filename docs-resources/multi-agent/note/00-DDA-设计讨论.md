@@ -75,6 +75,85 @@ DDA 检测到死锁 → DDA 通知 Worker："你的事务是 victim" → Worker 
 
 ---
 
+## DDA → Worker 通信机制（2026-06-09，来自 Anthropic 博客启发）
+
+> **启发来源**：Anthropic 博客"Subagent 输出到文件系统，不塞回 lead agent 的 messages，避免信息膨胀"
+
+### 核心问题
+
+DDA 检测到死锁后要通知 Worker。通知的内容放哪？直接塞进 Worker 的 messages 会膨胀上下文吗？
+
+### 我们场景的特点
+
+DDA → Worker 的通信量极小——就是"你的事务被回滚了"这一句话，几十字节。跟 Anthropic 的研究场景不同（subagent 查了 20 次搜索返回一堆文档），不需要文件系统。
+
+### 三个层级，由简到繁
+
+**Level 1: 间接通信（Phase 3 直接用，首选）**
+
+```
+DDA 直接 ROLLBACK 事务 7
+  ↓
+Worker 下一次 execute_sql 时
+  ↓
+rookieDB 返回: "ERROR: Transaction 7 has been rolled back"
+  ↓
+Worker 的 LLM 看到 tool_result → 自己推理发生了什么
+  → "哦，我的事务被回滚了，应该是死锁，重试一下"
+```
+
+- Worker 的 messages 里只多一条 tool_result（几十字节），不膨胀
+- 不需要额外通信机制、不需要共享存储、不需要写文件
+- 缺点：Worker 只能推断"被回滚了"，不知道原因是不是死锁
+
+**Level 2: 共享通知板（后续迭代）**
+
+```
+DDA 把死锁通知写到轻量存储:
+  notifications = {
+    "transaction_7": {"status": "victim", "reason": "deadlock detected, youngest transaction"}
+  }
+  ↓
+Worker 拿到的 tool_result 里除了 DB 错误信息，还附带通知:
+  "Transaction 7 rolled back by DDA (deadlock victim). Suggested: retry with different order."
+  ↓
+Worker 的 LLM 明确知道：是被 DDA 杀的，不是 SQL 写错了，直接重试就行
+```
+
+- 需要 DDA 和 MCP Server 之间共享一个通知数据结构
+- Worker 能做出更好的决策（重试 vs 放弃 vs 告诉用户）
+
+**Level 3: 写文件/存储（大量结果才需要，我们暂不需要）**
+
+```
+DDA 把完整死锁分析报告写到外部存储:
+  /tmp/dda/deadlock_report_20260609_143022.json
+  {
+    "wait_for_graph": ...,
+    "cycle": [transaction_3, transaction_7, transaction_3],
+    "victim": "transaction_7",
+    "reason": "holds fewest locks (2 vs 5)",
+    "affected_workers": ["Worker_B"]
+  }
+  ↓
+Worker_B 的 tool_result 里只引用: "see /tmp/dda/deadlock_report_..."
+  ↓
+Worker_B 的 LLM 需要细节时自己读文件，不需要时不读
+```
+
+- Anthropic 博客里的做法，适合返回大量数据
+- 我们的场景用不到——DDA 的报告就几百字节，不值得额外引入文件系统
+
+### 选择
+
+| Phase | 用哪个 | 理由 |
+|-------|--------|------|
+| Phase 3（首次跑通） | Level 1 | 最简单，不需要额外设施 |
+| 后续迭代 | Level 2 | 让 Worker 明确知道死锁 vs 一般错误的区别 |
+| Level 3 | 暂不需要 | DDA 结果数据量小，不值
+
+---
+
 ## DDA 内部模块分工（v1，2026-06-04）
 
 | 模块 | 实现方式 | 理由 |
@@ -157,6 +236,52 @@ Executor 回滚 + 通知 → 结束
 | **Hand-off** | Detector → Analyzer → Executor 串行交接 | Phase 3 可做 |
 | **Collaborative Filtering** | 多个 Analyzer 从不同角度选 victim，汇总裁决 | 未来探索 |
 | **Group Chat** | Worker 之间在"群"里协商锁资源 | 未来探索 |
+
+---
+
+## 工具描述自我改进（2026-06-09，来自 Anthropic 博客启发）
+
+> **启发来源**：[Anthropic Blog - Self-Improvement via Model](../04-Anthropic-Blog-笔记.md#23-自我改进self-improvement-via-model)
+> Anthropic 用 tool-testing agent 自动改进 MCP 工具描述，任务完成时间减少 40%。
+
+### 核心认知
+
+**工具描述是 Agent 的地图。地图不准 → Agent 走弯路。每次 Agent 踩坑，先改 tool description，而不是改 Agent prompt。**
+
+Agent prompt 改再多，工具描述不行，Agent 还是不知道工具怎么用。
+
+### 轻量版（Phase 3 即用）
+
+不写独立 tool-testing agent，用流程保证：
+
+```
+1. 跑 demo → Worker Agent 反复犯同一类错误
+2. 不调 Agent prompt
+3. 先去改工具的 description，把坑写进去
+4. 再跑 → 确认 Agent 不踩了
+```
+
+**例子**：
+- Worker 反复传空 SQL → execute_sql description 加："sql 参数不能为空，必须是完整 SQL 语句"
+- Worker 忘加分号 → 加："rookieDB 要求 SQL 以分号 ; 结尾，否则命令不会执行"
+- Worker 用中文查表 → 加："所有 SQL 语句只支持英文，表名和字段名不含中文字符"
+
+### 完整版（后续迭代）
+
+当工具多起来（execute_sql、show_locks、kill_transaction、list_waits、describe_table...），写一个 `tool_reviewer.py`：
+
+1. 读所有 MCP tool 的 description
+2. LLM 逐个审查：描述准不准确？缺什么参数说明？有没有已知坑没标注？
+3. LLM 自动生成改进版 description
+4. 人工确认后更新
+
+**不需要从零写 agent 循环**——就是调一次 `client.messages.create()`，把当前 description 喂给 LLM，让它对照"Agent 使用这个工具时常见错误"来改写。
+
+### 时机
+
+- **Phase 2**：工具少（execute_sql、list_tables、describe_table），手动改就够了
+- **Phase 3 后期**：加了 DDA 工具后（show_locks、kill_transaction），考虑写 tool_reviewer
+- **迭代中**：每次发现 Worker 反复踩同一个坑 → 立即改 description，不等 phase 结束 |
 
 ---
 

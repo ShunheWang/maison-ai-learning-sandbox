@@ -107,9 +107,21 @@ java -cp target/classes edu.berkeley.cs186.database.cli.Server &
 
 ### Step 3：Multi-Agent
 
-- [ ] 多 Agent 并发操作 rookieDB
-- [ ] 死锁检测算法（wait-for graph + BFS/DFS 找环）
-- [ ] Victim selection 策略
+- [x] **Phase 1: 概念学习** — 5 个 Session
+  - [x] Session 1: Agent 是什么 + 框架概览（Lesson 1 + 2）
+  - [x] Session 2: UX 设计原则（Lesson 3）
+  - [x] Session 3: Multi-Agent Design Pattern（Lesson 8）— 3 种场景、6 大构建模块、3 种模式
+  - [x] Session 4: Anthropic 博客 — Orchestrator-Worker 实战、性能数据、生产挑战
+  - [x] Session 5: Claude Patterns — 7 种模式速查、Workflows vs Agents
+  - [x] DDA 设计讨论 — 三层架构、方案 A/B、Agent 拆分 v2、通信机制
+- [ ] **Phase 2: 动手** — 3 个 demo
+  - [ ] `12_orchestrator_worker.py` — 两个 Agent 协作（编排模式）
+  - [ ] `13_concurrent_agents.py` — 多 Agent 并发操作 rookieDB
+  - [ ] `14_deadlock_scenario.py` — 死锁场景复现
+- [ ] **Phase 3: DDA** — 死锁检测 Agent
+  - [ ] Wait-for graph 构建 + BFS 找环（传统代码）
+  - [ ] Victim selection（LLM Agent）
+  - [ ] 端到端：并发 → 死锁 → DDA 检测 → 回滚 → 恢复
 
 ### Step 4：RAG
 
@@ -420,4 +432,31 @@ def execute(self, sql):
 
 6. **Agent 循环完全不变**：11 的 Agent 循环跟 03/06/09 一模一样——`while + stop_reason + tool_use + tool_result + messages.append`。MCP 只替换了工具执行层，不改变 Agent 架构
 
-8. **async/await**：MCP Client 基础用法只需知道 `await`=等结果、`async`=标记函数、`asyncio.run()`=启动
+7. **async/await**：MCP Client 基础用法只需知道 `await`=等结果、`async`=标记函数、`asyncio.run()`=启动
+
+---
+
+### 2026-06-04 晚 ~ 2026-06-09 — Step 3 Phase 1：多 Agent 概念学习
+
+**产出**：
+- 学习计划 + 6 篇笔记（`docs-resources/multi-agent/note/`）
+- DDA 设计讨论更新（`00-DDA-设计讨论.md`）
+
+**学的内容**：
+- Lesson 1（Agent 是什么、7 种类型、什么时候用）— 确认已有认知
+- Lesson 2（框架概览）— 确认原生 SDK 选型正确
+- Lesson 3（UX 设计原则）— 修正预期，偏产品思维
+- Lesson 8（Multi-Agent）— **最核心**：3 种场景、3 个优势、6 大构建模块、3 种模式、退款场景
+- Anthropic 博客（Orchestrator-Worker 实战）— 性能数据（90.2% 提升）、subagent 设计原则、生产挑战
+- Claude Patterns（7 种模式速查）— 6 Workflows + 3 变体 + Autonomous Agent
+
+**关键认知变化**：
+1. **DDA 不是主角，编排才是**—多 Agent 编排是目标，DDA 是配套保障
+2. **Agent 在编排层，不在数据层**—确定性代码兜底，Agent 做编排
+3. **DDA 的操作粒度是事务，不是 Agent**—一个 Worker 可能持有多个事务
+4. **方案 A（DDA 直接操作 DB）先做**—Agent 不擅长实时协调 Agent
+5. **多 Agent 本质上是在扩展 token 预算**—不是"更聪明"，是"能用更多 token 并行"
+6. **DDA 可拆成 Detector → Analyzer → Executor**（Hand-off 模式，后续迭代）
+7. **工具描述 = Agent 的地图**—描述不准，Agent 就走弯路
+
+**下一步**：Phase 2 动手写 3 个 demo（编排 → 并发 → 死锁场景）
