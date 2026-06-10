@@ -118,9 +118,9 @@ java -cp target/classes edu.berkeley.cs186.database.cli.Server &
   - [x] `12_orchestrator_worker.py` — Orchestrator → Worker A + B（纯 Prompt Chaining）
   - [x] `13_concurrent_agents.py` — 3 个 Worker Agent 并发操作 rookieDB
   - [x] `14_deadlock_scenario.py` — 死锁场景复现（asyncio.Event 同步屏障 + \alllocks 真实锁状态）
-- [ ] **Phase 3: DDA** — 死锁检测 Agent
-  - [ ] Wait-for graph 构建 + BFS 找环（传统代码）
-  - [ ] Victim selection（LLM Agent）
+- [x] **Phase 3: DDA** — 已独立为单独项目 → [dda](https://github.com/shunhewang/dda)
+  - [x] 需求文档、设计决策记录、项目初始化完成
+  - [ ] 代码实现（Wait-for graph + DFS 找环 + Victim selection + 回滚）
   - [ ] 端到端：并发 → 死锁 → DDA 检测 → 回滚 → 恢复
 
 ### Step 4：RAG
